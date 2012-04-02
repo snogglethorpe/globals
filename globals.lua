@@ -83,7 +83,8 @@ local luac = os.getenv ('LUAC') or 'luac'
 local fd = io.popen( luac .. ' -v'  ) 
 local luavm_ver = fd:read():match('Lua (%d.%d)')
 
-for _,filename in ipairs(arg) do 
+for i = 1, select ('#', ...) do
+	local filename = select (i, ...)
 	io.write('\n'..filename..'\n')
 	process_file( filename , luac, luavm_ver)
 end
