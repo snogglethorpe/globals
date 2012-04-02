@@ -15,6 +15,9 @@ local omit_standard = false
 -- format that Emacs etc can use to jump to that location)
 local compiler_style_output = false
 
+-- if true, only show the first occurance of a given symbol in a file
+local omit_duplicates = false
+
 local function process_file(filename, luac, luavm_ver)
 	local global_list = {} -- global usages {{name=, line=, op=''},...}
 	local name_list = {}   -- list of global names
@@ -51,26 +54,29 @@ local function process_file(filename, luac, luavm_ver)
 			return false
 		end )
 		
+	local prev_name 
 	if compiler_style_output then
 		for _, v in ipairs(global_list) do
-			local msg = ""
-			if v.set then
-				msg = "definition of"
-			else
-				msg = "reference to"
+			if v.name ~= prev_name then
+				local msg = ""
+				if v.set then
+					msg = "definition of"
+				else
+					msg = "reference to"
+				end
+				msg = msg.." "..'"'..v.name..'"'
+				if _G[v.name] then
+					msg = msg.." (standard symbol)"
+				end
+				print (filename..":"..v.line..": "..msg)
+				prev_name = v.name
 			end
-			msg = msg.." "..'"'..v.name..'"'
-			if _G[v.name] then
-				msg = msg.." (standard symbol)"
-			end
-			print (filename..":"..v.line..": "..msg)
 		end
 	else
 		-- print globals, grouped per name
 
 		io.write('\n'..filename..'\n')
 
-		local prev_name 
 		for _, v in ipairs(global_list) do
 			local name =   v.name 
 			local unknown = '   '
@@ -123,6 +129,8 @@ for i = 1, select ('#', ...) do
 		omit_standard = true
 	elseif filename == '-c' or filename == '--compiler-style' then
 		compiler_style_output = true
+	elseif filename == '-d' or filename == '--omit-duplicates' then
+		omit_duplicates = true
 	else
 		process_file( filename , luac, luavm_ver)
 	end
