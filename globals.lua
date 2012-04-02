@@ -11,6 +11,10 @@ local _G,arg,io,ipairs,os,string,table,tonumber
 -- if true, omit standard globals
 local omit_standard = false
 
+-- if true, use "compiler style" output (one line per symbol, in a
+-- format that Emacs etc can use to jump to that location)
+local compiler_style_output = false
+
 local function process_file(filename, luac, luavm_ver)
 	local global_list = {} -- global usages {{name=, line=, op=''},...}
 	local name_list = {}   -- list of global names
@@ -32,8 +36,9 @@ local function process_file(filename, luac, luavm_ver)
 				ok = false
 			end
 			if ok then
-				if op=='S' then op='s' else op='' end -- s means set global
-				table.insert(global_list, {name=g, line=tonumber(l), op=op})
+				local set = false
+				if op=='S' then set = true end -- s means set global
+				table.insert(global_list, {name=g, line=tonumber(l), set = set})
 			end
 		end
 	end
@@ -46,7 +51,25 @@ local function process_file(filename, luac, luavm_ver)
 			return false
 		end )
 		
-	do  -- print globals, grouped per name
+	if compiler_style_output then
+		for _, v in ipairs(global_list) do
+			local msg = ""
+			if v.set then
+				msg = "definition of"
+			else
+				msg = "reference to"
+			end
+			msg = msg.." "..'"'..v.name..'"'
+			if _G[v.name] then
+				msg = msg.." (standard symbol)"
+			end
+			print (filename..":"..v.line..": "..msg)
+		end
+	else
+		-- print globals, grouped per name
+
+		io.write('\n'..filename..'\n')
+
 		local prev_name 
 		for _, v in ipairs(global_list) do
 			local name =   v.name 
@@ -58,18 +81,22 @@ local function process_file(filename, luac, luavm_ver)
 				prev_name=name
 				io.write(string.format (  ' %s %-12s :', unknown, name))
 			end
-			io.write(' ',v.line..v.op)
+			local set_str = ''
+			if io.set then
+				set_str = 's'
+			end
+			io.write(' ',v.line..set_str)
 			
 		end
 		io.write('\n')
-	end
 
-	-- print globals declaration list
-	local list = table.concat(name_list, ',')
-	io.write('\n')
-	io.write('local ' .. list .. '\n')
-	io.write('    = ' .. list .. '\n')
-	io.write('\n\n')
+		-- print globals declaration list
+		local list = table.concat(name_list, ',')
+		io.write('\n')
+		io.write('local ' .. list .. '\n')
+		io.write('    = ' .. list .. '\n')
+		io.write('\n\n')
+	end
 end
 
 if not arg[1] then
@@ -94,8 +121,9 @@ for i = 1, select ('#', ...) do
 	local filename = select (i, ...)
 	if filename == '-o' or filename == '--omit-standard' then
 		omit_standard = true
+	elseif filename == '-c' or filename == '--compiler-style' then
+		compiler_style_output = true
 	else
-		io.write('\n'..filename..'\n')
 		process_file( filename , luac, luavm_ver)
 	end
 end
