@@ -8,6 +8,9 @@
 local _G,arg,io,ipairs,os,string,table,tonumber
     = _G,arg,io,ipairs,os,string,table,tonumber
 
+-- if true, omit standard globals
+local omit_standard = false
+
 local function process_file(filename, luac, luavm_ver)
 	local global_list = {} -- global usages {{name=, line=, op=''},...}
 	local name_list = {}   -- list of global names
@@ -24,6 +27,9 @@ local function process_file(filename, luac, luavm_ver)
 				ok,_,l,op,g=string.find(s,'%[%-?(%d*)%]%s*([GS])ETTABUP.-;%s+_ENV "([^"]+)"(.*)$')
 			else   -- assume 5.1
 				ok,_,l,op,g=string.find(s,'%[%-?(%d*)%]%s*([GS])ETGLOBAL.-;%s+(.*)$')
+			end
+			if ok and omit_standard and _G[g] then
+				ok = false
 			end
 			if ok then
 				if op=='S' then op='s' else op='' end -- s means set global
@@ -70,7 +76,8 @@ if not arg[1] then
 	io.write(
 		table.concat({ 
 			'globals.lua - list global variables in Lua files',
-			'usage: globals.lua  <inputfiles>',
+			'usage: globals.lua [<option>...]  <inputfiles>',
+			"  -o, --omit-standard : Don't show standard symbols",
 			'  <inputfiles> : list of Lua files ',
 			'',
 			"  environment variable 'LUAC' overrides name of 'luac'",
@@ -85,6 +92,10 @@ local luavm_ver = fd:read():match('Lua (%d.%d)')
 
 for i = 1, select ('#', ...) do
 	local filename = select (i, ...)
-	io.write('\n'..filename..'\n')
-	process_file( filename , luac, luavm_ver)
+	if filename == '-o' or filename == '--omit-standard' then
+		omit_standard = true
+	else
+		io.write('\n'..filename..'\n')
+		process_file( filename , luac, luavm_ver)
+	end
 end
