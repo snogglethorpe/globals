@@ -8,12 +8,16 @@
 local _G,arg,io,ipairs,os,string,table,tonumber
     = _G,arg,io,ipairs,os,string,table,tonumber
 
--- if true, omit standard globals
-local omit_standard = false
+-- If true, omit standard globals.
+--
+local show_standard = false
 
--- if true, use "compiler style" output (one line per symbol, in a
--- format that Emacs etc can use to jump to that location)
-local compiler_style_output = false
+-- If true, use the original output style.
+--
+-- By default, the output is "compiler style" -- one line per symbol,
+-- in a format that Emacs etc can use to jump to that location.
+--
+local old_style_output = false
 
 -- if true, only show the first occurance of a given symbol in a file
 local omit_duplicates = false
@@ -35,7 +39,7 @@ local function process_file(filename, luac, luavm_ver)
 			else   -- assume 5.1
 				ok,_,l,op,g=string.find(s,'%[%-?(%d*)%]%s*([GS])ETGLOBAL.-;%s+(.*)$')
 			end
-			if ok and omit_standard and _G[g] then
+			if ok and not show_standard and _G[g] then
 				ok = false
 			end
 			if ok then
@@ -55,7 +59,7 @@ local function process_file(filename, luac, luavm_ver)
 		end )
 		
 	local prev_name 
-	if compiler_style_output then
+	if not old_style_output then
 		for _, v in ipairs(global_list) do
 			if v.name ~= prev_name then
 				local msg = ""
@@ -105,18 +109,22 @@ local function process_file(filename, luac, luavm_ver)
 	end
 end
 
-if not arg[1] then
-	io.write(
-		table.concat({ 
-			'globals.lua - list global variables in Lua files',
-			'usage: globals.lua [<option>...]  <inputfiles>',
-			"  -o, --omit-standard : Don't show standard symbols",
-			'  <inputfiles> : list of Lua files ',
-			'',
-			"  environment variable 'LUAC' overrides name of 'luac'",
-			''
-	},'\n' ))
-	return
+local nargs = select ('#', ...)
+local cmd = string.match (arg[0], "([^/]*)$")
+
+local usage = 'Usage: '..cmd.. ' [OPTION...] LUA_SRC_FILE...'
+local help = [[List global variables in Lua files
+
+  -o, --old                  Use old output format
+  -s, --show-standard        Show standard symbols
+  -d, --omit-duplicates      Only show first use of a symbol in each file
+
+By default, the Lua compiler is invoked as "luac".  The environment
+variable LUAC can be used override this.]]
+
+if nargs == 0 then
+	io.stderr:write (usage.."\n")
+	os.exit (1)
 end
 
 local luac = os.getenv ('LUAC') or 'luac'
@@ -125,12 +133,16 @@ local luavm_ver = fd:read():match('Lua (%d.%d)')
 
 for i = 1, select ('#', ...) do
 	local filename = select (i, ...)
-	if filename == '-o' or filename == '--omit-standard' then
-		omit_standard = true
-	elseif filename == '-c' or filename == '--compiler-style' then
-		compiler_style_output = true
+	if filename == '-o' or filename == '--old' then
+		old_style_output = true
+	elseif filename == '-s' or filename == '--show-standard' then
+		show_standard = true
 	elseif filename == '-d' or filename == '--omit-duplicates' then
 		omit_duplicates = true
+	elseif filename == '--help' then
+		print(usage)
+		print(help)
+		os.exit (0)
 	else
 		process_file( filename , luac, luavm_ver)
 	end
